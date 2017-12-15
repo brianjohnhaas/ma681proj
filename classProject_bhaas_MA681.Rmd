@@ -134,6 +134,9 @@ rand_H1_vals_list = list()
 perm_vals_mean_list = list()
 perm_vals_median_list = list()
 
+tested_actual_GM_vals = list()
+tested_actual_H1_vals = list()
+
 set.seed = 1234
 sample_size = 20
 counter = 0
@@ -147,6 +150,9 @@ for (gene in genes) {
   GM_vals = GM[gene,]
   H1_vals = H1[gene,]
 
+  tested_actual_GM_vals = GM_vals
+  tested_actual_H1_vals = H1_vals
+  
   gene_varGM = max(var(GM_vals), 1)
   gene_meanGM = mean(GM_vals)
   gene_medianGM = median(GM_vals)
@@ -211,8 +217,8 @@ save.image("session.RData")
 
 ```{r}
 plot_gene_expr = function(gene) {
-  GM_vals = GM[gene,]
-  H1_vals = H1[gene,]
+  GM_vals = tested_actual_GM_vals[[gene]]
+  H1_vals = tested_actual_H1_vals[[gene]]
   
   GM_rand_vals = rand_GM_vals_list[[gene]]
   H1_rand_vals = rand_H1_vals_list[[gene]]
@@ -220,9 +226,10 @@ plot_gene_expr = function(gene) {
   message("mean GM_vals: ", mean(GM_vals), ", var GM_vals: ", var(GM_vals))
   message("mean GM_rand_vals: ", mean(GM_rand_vals), ", var GM_rand_vals: ", var(GM_rand_vals))
   
-   message("mean H1_vals: ", mean(H1_vals), ", var H1_vals: ", var(H1_vals))
+  message("mean H1_vals: ", mean(H1_vals), ", var H1_vals: ", var(H1_vals))
   message("mean H1_rand_vals: ", mean(H1_rand_vals), ", var H1_rand_vals: ", var(H1_rand_vals))
  
+  message("Delta mean: ", abs(mean(GM_vals) - mean(H1_vals)))
   
   data = data.frame(type='GM_vals', pts = GM_vals)
   data = rbind(data, data.frame(type='GM_rand', pts = GM_rand_vals))
@@ -231,7 +238,7 @@ plot_gene_expr = function(gene) {
   data = rbind(data, data.frame(type='H1_rand', pts = H1_rand_vals))
 
   
-  data %>% ggplot(aes(x=type, y=pts)) + geom_point()
+  data %>% ggplot(aes(x=type, y=pts, color=type)) + geom_jitter(width=0.2)
   
 }
   
@@ -240,8 +247,8 @@ plot_gene_expr = function(gene) {
 ```{r}
 plot_dist_of_stat_differences = function(gene) {
   
-    GM_vals = GM[gene,]
-    H1_vals = H1[gene,]
+    GM_vals = tested_actual_GM_vals[[gene]]
+    H1_vals = tested_actual_H1_vals[[gene]]
   
     delta_mean = abs(mean(GM_vals) - mean(H1_vals))
     delta_median = abs(median(GM_vals) - median(H1_vals))
@@ -284,29 +291,44 @@ rand_H1_vals_list = list()
 perm_vals_mean_list = list()
 perm_vals_median_list = list()
 
+tested_actual_GM_vals = list()
+tested_actual_H1_vals = list()
+
+use_log=F
+add_noise=F
+
 set.seed = 1234
 sample_size = 20
 counter = 0
+genes = rownames(GM)
+#genes = c('A1BG')
 for (gene in genes) {
   counter = counter + 1
   if (counter %% 1000 == 0) {
     message("at count: ", counter)
   }
   #if (counter > 1000) { break}
-  
+  set.seed = 1234
   GM_vals = GM[gene,]
   H1_vals = H1[gene,]
 
+  # add a little random noise
+  if(add_noise) {
+    GM_vals = GM_vals + rpois(n=length(GM_vals), lambda=1)
+    H1_vals = H1_vals + rpois(n=length(H1_vals), lambda=1)
+  }
+  tested_actual_GM_vals[[gene]] = GM_vals
+  tested_actual_H1_vals[[gene]] = H1_vals
+  
   diff_means = mean(GM_vals) - mean(H1_vals)
   diff_medians = median(GM_vals) - median(H1_vals)
  
-  GM_vals = log(GM_vals+1)
-  H1_vals = log(H1_vals+1)
+  # adjust to log space for variance estimates
   
-  # add a little random noise
-  GM_vals = GM_vals + abs(rnorm(n=length(GM_vals)))
-  H1_vals = H1_vals + abs(rnorm(n=length(H1_vals)))
-  
+  if (use_log) {
+     GM_vals = log(GM_vals+1) # ensure non-negative
+     H1_vals = log(H1_vals+1)
+  }
   #GM_var_conf_level = quantile(x = replicate(10, var(sample(GM_vals, replace = T))), probs = 0.99)
   GM_var_conf_level = var(GM_vals)
   
@@ -321,17 +343,21 @@ for (gene in genes) {
   gene_meanH1 = mean(H1_vals)
   gene_medianH1 = median(H1_vals)
   
-  rnorm_GM = abs(rnorm(n = sample_size, mean=gene_meanGM, sd=sqrt(gene_varGM)))
+  rnorm_GM = abs(rnorm(n = length(GM_vals), mean=gene_meanGM, sd=sqrt(gene_varGM)))
+  #rnorm_GM = abs(rnorm(n = sample_size, mean=gene_meanGM, sd=sqrt(gene_varGM)))
   
-  rnorm_GM = exp(rnorm_GM) - 1
-  
+  if (use_log) {
+    rnorm_GM = exp(rnorm_GM) - 1  # convert back to non-log space
+  }
   rand_GM_vals_list[[gene]] = rnorm_GM
   
   
-  rnorm_H1 = abs(rnorm(n = sample_size, mean=gene_meanH1, sd=sqrt(gene_varH1)))
+  rnorm_H1 = abs(rnorm(n = length(H1_vals), mean=gene_meanH1, sd=sqrt(gene_varH1)))
+  #rnorm_H1 = abs(rnorm(n = sample_size, mean=gene_meanH1, sd=sqrt(gene_varH1)))
   
-  rnorm_H1 = exp(rnorm_H1) - 1
-  
+  if (use_log) {
+    rnorm_H1 = exp(rnorm_H1) - 1  # convert back to non-log space
+  }
   rand_H1_vals_list[[gene]] = rnorm_H1
   
   logFC = log( (gene_meanGM+1) / (gene_meanH1+1) )
