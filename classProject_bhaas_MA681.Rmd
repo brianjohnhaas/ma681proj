@@ -8,6 +8,8 @@ output: pdf_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 options(stringsAsFactors = FALSE)
+library(ggplot2)
+library(dplyr)
 ```
 
 ```{r}
@@ -122,6 +124,13 @@ Also, use mean and median as the stats
 fold_changes_df_sim = data.frame(gene=NULL, logFC = NULL, 
                                  pvalue_for_mean=NULL, pvalue_for_median=NULL)
 
+
+rand_GM_vals_list = list()
+rand_H1_vals_list = list()
+
+perm_vals_mean_list = list()
+perm_vals_median_list = list()
+
 set.seed = 1234
 sample_size = 10
 counter = 0
@@ -149,17 +158,24 @@ for (gene in genes) {
   logFC = log( (gene_meanGM+1) / (gene_meanH1+1) )
   
   rnorm_GM = abs(rnorm(n = sample_size, mean=gene_meanGM, sd=sqrt(gene_varGM)))
+  rand_GM_vals_list[[gene]] = rnorm_GM
+  
+  
   rnorm_H1 = abs(rnorm(n = sample_size, mean=gene_meanH1, sd=sqrt(gene_varH1)))
+  rand_H1_vals_list[[gene]] = rnorm_H1
   
   perm_vals_mean =  replicate(n = num_reps, expr = perm_vals_stat(rnorm_GM, rnorm_H1, mean))
-   
+  perm_vals_mean_list[[gene]] = perm_vals_mean
+  
   perm_vals_median =  replicate(n = num_reps, expr = perm_vals_stat(rnorm_GM, rnorm_H1, median))
- 
+  perm_vals_median_list[[gene]] = perm_vals_median
+  
   p_val_for_mean = sum( abs(perm_vals_mean) >= abs(diff_means) ) / num_reps
   
   p_val_for_median = sum( abs(perm_vals_median) >= abs(diff_medians)) / num_reps
   
-  fold_changes_df_sim = rbind(fold_changes_df_sim, c(gene, logFC, p_val_for_mean, p_val_for_median))
+  fold_changes_df_sim = rbind(fold_changes_df_sim, c(gene, logFC, 
+                                                     p_val_for_mean, p_val_for_median))
   
    
 }
@@ -181,8 +197,74 @@ sim_data_byMedian = read.table("sim_norm_perm.fold_changes.dat.byMedian.roc")
 ```{r}
 plot(simple_perm_data$FP_rate, simple_perm_data$TP_rate, t='l')
 points(sim_data_byMean$FP_rate, sim_data_byMean$TP_rate, col='red', t='l')
-points(sim_data_byMedian$FP_rate, sim_data_by_Median$TP_rate, col='orange', t='l')
+points(sim_data_byMedian$FP_rate, sim_data_byMedian$TP_rate, col='orange', t='l')
+```
+
+```{r}
+save.image("session.RData")
 ```
 
 
 
+```{r}
+plot_gene_expr = function(gene) {
+  GM_vals = GM[gene,]
+  H1_vals = H1[gene,]
+  
+  GM_rand_vals = rand_GM_vals_list[[gene]]
+  H1_rand_vals = rand_H1_vals_list[[gene]]
+  
+ 
+  
+  data = data.frame(type='GM_vals', pts = GM_vals)
+  data = rbind(data, data.frame(type='GM_rand', pts = GM_rand_vals))
+  
+  data = rbind(data, data.frame(type='H1_vals', pts = H1_vals))
+  data = rbind(data, data.frame(type='H1_rand', pts = H1_rand_vals))
+
+  
+  data %>% ggplot(aes(x=type, y=pts)) + geom_point()
+  
+
+#perm_vals_mean_list = list()
+#perm_vals_median_list = list()
+  
+  
+}
+  
+```
+
+```{r}
+plot_dist_of_stat_differences = function(gene) {
+  
+    GM_vals = GM[gene,]
+    H1_vals = H1[gene,]
+  
+    delta_mean = abs(mean(GM_vals) - mean(H1_vals))
+    delta_median = abs(median(GM_vals) - median(H1_vals))
+    
+    perm_means = abs(perm_vals_mean_list[[gene]])
+    perm_medians = abs(perm_vals_median_list[[gene]])
+    
+    df=data.frame(type='means', vals=perm_means)
+    df = rbind(df, data.frame(type='medians', vals=perm_medians))
+    
+    df %>% ggplot(aes(x=vals, color=type)) + geom_density() + 
+      geom_vline(xintercept = delta_mean, color='red') +
+      geom_vline(xintercept = delta_median, color='blue') 
+    
+} 
+  
+```
+
+
+```{r}
+plot_dist_of_stat_differences('A1BG')
+```
+
+
+  ## Using trended variance by leveraging linear modeling
+  
+  
+  
+  
