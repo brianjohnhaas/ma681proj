@@ -77,6 +77,7 @@ perm_vals_stat = function(listA, listB, stat_func) {
 set.seed(1234)
 genes = rownames(GM)
 num_reps = 100
+raw_perm_vals_mean = list()
 #genes = names(logfcs)[which(abs(logfcs) > 2)]
 fold_changes_df = data.frame(gene=NULL, logFC = NULL, pvalue=NULL)
 counter = 0
@@ -97,6 +98,8 @@ for (gene in genes) {
   diff_means = mean_GM - mean_H1
   
   perms = replicate(n = num_reps, expr = perm_vals_stat(GM_vals, H1_vals, mean))
+  
+  raw_perm_vals_mean[[gene]] = perms
   
   p_val = sum( abs(perms) >= abs(diff_means) ) / num_reps
   
@@ -132,7 +135,7 @@ perm_vals_mean_list = list()
 perm_vals_median_list = list()
 
 set.seed = 1234
-sample_size = 10
+sample_size = 20
 counter = 0
 for (gene in genes) {
   counter = counter + 1
@@ -143,7 +146,7 @@ for (gene in genes) {
   
   GM_vals = GM[gene,]
   H1_vals = H1[gene,]
-  
+
   gene_varGM = max(var(GM_vals), 1)
   gene_meanGM = mean(GM_vals)
   gene_medianGM = median(GM_vals)
@@ -214,6 +217,11 @@ plot_gene_expr = function(gene) {
   GM_rand_vals = rand_GM_vals_list[[gene]]
   H1_rand_vals = rand_H1_vals_list[[gene]]
   
+  message("mean GM_vals: ", mean(GM_vals), ", var GM_vals: ", var(GM_vals))
+  message("mean GM_rand_vals: ", mean(GM_rand_vals), ", var GM_rand_vals: ", var(GM_rand_vals))
+  
+   message("mean H1_vals: ", mean(H1_vals), ", var H1_vals: ", var(H1_vals))
+  message("mean H1_rand_vals: ", mean(H1_rand_vals), ", var H1_rand_vals: ", var(H1_rand_vals))
  
   
   data = data.frame(type='GM_vals', pts = GM_vals)
@@ -224,11 +232,6 @@ plot_gene_expr = function(gene) {
 
   
   data %>% ggplot(aes(x=type, y=pts)) + geom_point()
-  
-
-#perm_vals_mean_list = list()
-#perm_vals_median_list = list()
-  
   
 }
   
@@ -243,15 +246,18 @@ plot_dist_of_stat_differences = function(gene) {
     delta_mean = abs(mean(GM_vals) - mean(H1_vals))
     delta_median = abs(median(GM_vals) - median(H1_vals))
     
+    raw_perm_means = abs(raw_perm_vals_mean[[gene]])
+    
     perm_means = abs(perm_vals_mean_list[[gene]])
     perm_medians = abs(perm_vals_median_list[[gene]])
     
     df=data.frame(type='means', vals=perm_means)
     df = rbind(df, data.frame(type='medians', vals=perm_medians))
+    df = rbind(df, data.frame(type='raw', vals=raw_perm_means))
     
     df %>% ggplot(aes(x=vals, color=type)) + geom_density() + 
       geom_vline(xintercept = delta_mean, color='red') +
-      geom_vline(xintercept = delta_median, color='blue') 
+      geom_vline(xintercept = delta_median, color='green') 
     
 } 
   
@@ -263,8 +269,149 @@ plot_dist_of_stat_differences('A1BG')
 ```
 
 
-  ## Using trended variance by leveraging linear modeling
+
+## Try using confidence in variance level to reduce false positives
+
+```{r}
+
+fold_changes_df_sim_varconf = data.frame(gene=NULL, logFC = NULL, 
+                                 pvalue_for_mean=NULL, pvalue_for_median=NULL)
+
+
+rand_GM_vals_list = list()
+rand_H1_vals_list = list()
+
+perm_vals_mean_list = list()
+perm_vals_median_list = list()
+
+set.seed = 1234
+sample_size = 20
+counter = 0
+for (gene in genes) {
+  counter = counter + 1
+  if (counter %% 1000 == 0) {
+    message("at count: ", counter)
+  }
+  #if (counter > 1000) { break}
+  
+  GM_vals = GM[gene,]
+  H1_vals = H1[gene,]
+
+  diff_means = mean(GM_vals) - mean(H1_vals)
+  diff_medians = median(GM_vals) - median(H1_vals)
+ 
+  GM_vals = log(GM_vals+1)
+  H1_vals = log(H1_vals+1)
+  
+  # add a little random noise
+  GM_vals = GM_vals + abs(rnorm(n=length(GM_vals)))
+  H1_vals = H1_vals + abs(rnorm(n=length(H1_vals)))
+  
+  #GM_var_conf_level = quantile(x = replicate(10, var(sample(GM_vals, replace = T))), probs = 0.99)
+  GM_var_conf_level = var(GM_vals)
+  
+  gene_varGM = GM_var_conf_level
+  gene_meanGM = mean(GM_vals)
+  gene_medianGM = median(GM_vals)
+  
+  #H1_var_conf_level = quantile(x = replicate(10, var(sample(H1_vals, replace = T))), probs = 0.99)
+  H1_var_conf_level = var(H1_vals)
+  
+  gene_varH1 = H1_var_conf_level
+  gene_meanH1 = mean(H1_vals)
+  gene_medianH1 = median(H1_vals)
+  
+  rnorm_GM = abs(rnorm(n = sample_size, mean=gene_meanGM, sd=sqrt(gene_varGM)))
+  
+  rnorm_GM = exp(rnorm_GM) - 1
+  
+  rand_GM_vals_list[[gene]] = rnorm_GM
   
   
+  rnorm_H1 = abs(rnorm(n = sample_size, mean=gene_meanH1, sd=sqrt(gene_varH1)))
   
+  rnorm_H1 = exp(rnorm_H1) - 1
   
+  rand_H1_vals_list[[gene]] = rnorm_H1
+  
+  logFC = log( (gene_meanGM+1) / (gene_meanH1+1) )
+  
+  perm_vals_mean =  replicate(n = num_reps, expr = perm_vals_stat(rnorm_GM, rnorm_H1, mean))
+  perm_vals_mean_list[[gene]] = perm_vals_mean
+  
+  perm_vals_median =  replicate(n = num_reps, expr = perm_vals_stat(rnorm_GM, rnorm_H1, median))
+  perm_vals_median_list[[gene]] = perm_vals_median
+  
+  p_val_for_mean = sum( abs(perm_vals_mean) >= abs(diff_means) ) / num_reps
+  
+  p_val_for_median = sum( abs(perm_vals_median) >= abs(diff_medians)) / num_reps
+  
+  fold_changes_df_sim_varconf = rbind(fold_changes_df_sim_varconf, c(gene, logFC, 
+                                                     p_val_for_mean, p_val_for_median))
+  
+   
+}
+
+colnames(fold_changes_df_sim_varconf) = c('gene', 'logFC', 'p_val_for_mean', 'p_val_for_median')
+
+write.table(fold_changes_df_sim_varconf, file="sim_norm_perm.fold_changes.var_conf.dat", quote=F, sep='\t')
+```
+
+
+```{r}
+system("./scripts/assign_prediction_status.pl sim_norm_perm.fold_changes.var_conf.dat 1 3 > sim_norm_perm.fold_changes.var_conf.dat.byMean.roc")
+system("./scripts/assign_prediction_status.pl sim_norm_perm.fold_changes.var_conf.dat 1 4 > sim_norm_perm.fold_changes.var_conf.dat.byMedian.roc")
+
+sim_data_byMean_varconf = read.table("sim_norm_perm.fold_changes.var_conf.dat.byMean.roc")
+sim_data_byMedian_varconf = read.table("sim_norm_perm.fold_changes.var_conf.dat.byMedian.roc")
+```
+
+```{r}
+plot(simple_perm_data$FP_rate, simple_perm_data$TP_rate, t='l')
+points(sim_data_byMean$FP_rate, sim_data_byMean$TP_rate, col='red', t='l')
+points(sim_data_byMedian$FP_rate, sim_data_byMedian$TP_rate, col='orange', t='l')
+
+points(sim_data_byMean_varconf$FP_rate, sim_data_byMean_varconf$TP_rate, col='blue', t='l')
+points(sim_data_byMedian_varconf$FP_rate, sim_data_byMedian_varconf$TP_rate, col='green', t='l')
+
+
+```
+
+
+
+## Using trended variance by leveraging linear modeling
+  
+```{r}
+#plot(x = meanVarInfo$meanGM, y=meanVarInfo$varGM, log='xy', pch='.')
+#points(x=meanVarInfo$meanH1, y=meanVarInfo$varH1, col='blue', pch='.')
+#abline(a=0,b=1, col='red')
+
+gm_mod = lm(log(meanVarInfo$varGM +1) ~ log(meanVarInfo$meanGM +1))
+gm_poly_mod = lm(log(meanVarInfo$varGM +1) ~ log(meanVarInfo$meanGM +1) + poly(log(meanVarInfo$meanGM +1), 2))
+```
+
+```{r}
+plot(x = meanVarInfo$meanGM, y=meanVarInfo$varGM, log='xy', pch='.')
+points(x=meanVarInfo$meanGM, y=exp(predict(gm_mod, data=log(meanVarInfo$meanGM +1))), col='green')
+points(x=meanVarInfo$meanGM, y=exp(predict(gm_poly_mod, data=log(meanVarInfo$meanGM +1))), col='orange')
+AIC(gm_mod)
+AIC(gm_poly_mod)
+
+```
+  
+```{r}
+  ggplotRegression <- function (fit) {
+
+require(ggplot2)
+
+ggplot(fit$model, aes_string(x = names(fit$model)[2], y = names(fit$model)[1])) + 
+  geom_point() +
+  stat_smooth(method = "lm", col = "red") +
+  labs(title = paste("Adj R2 = ",signif(summary(fit)$adj.r.squared, 5),
+                     "Intercept =",signif(fit$coef[[1]],5 ),
+                     " Slope =",signif(fit$coef[[2]], 5),
+                     " P =",signif(summary(fit)$coef[2,4], 5)))
+}
+```
+
+
