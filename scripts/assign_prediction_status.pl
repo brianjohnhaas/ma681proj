@@ -3,6 +3,8 @@
 use strict;
 use warnings;
 
+use FindBin;
+
 my $usage = "usage: $0  pred_file acc_col padj_col\n\n";
 
 my $pred_file = $ARGV[0] or die $usage;
@@ -11,15 +13,12 @@ unless (defined $acc_col) { die $usage; }
 
 my $padj_col = $ARGV[2] or die $usage;
 
-my $TP_file = "/Users/bhaas/BU/MA681_stats/ClassProject/data/CellLines/define_truth_set/TP.list";
-my $TN_file = "/Users/bhaas/BU/MA681_stats/ClassProject/data/CellLines/define_truth_set/TN.list";
-
+my $TP_file = "$FindBin::Bin/../data/truth_set/TP.list";
 
 
 main: {
 
     my %TPs = &parse_accs($TP_file);
-    my %TNs = &parse_accs($TN_file);
 
     my $total_truth = scalar(keys %TPs);
     my $num_TP = 0;
@@ -59,15 +58,11 @@ main: {
             $class = "TP";
             $num_TP++;
         }
-        elsif ($TNs{$acc}) {
+        else {
             $class = "FP";
             $num_FP++;
         }
-        else {
-            $class = "NA";
-        }
-        
-        
+	        
         my $TP_rate = $num_TP / $total_truth;
         
         my $FP_rate = $num_FP / $num_TNs;

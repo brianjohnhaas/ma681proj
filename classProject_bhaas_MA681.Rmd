@@ -7,7 +7,6 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library(tidyverse)
 options(stringsAsFactors = FALSE)
 ```
 
@@ -17,6 +16,8 @@ data = read.table("data/GM12892_H1hESC.counts.matrix", header=T, row.names=1)
 # convert to CPMs
 cs = colSums(data)
 data = t(apply(data, 1, function(x) { x / cs * 1e6 }))
+
+data = round(data) # integer counts
 
 GM = data[,grep("^GM", colnames(data))]
 H1 = data[,grep("^H1", colnames(data))]
@@ -73,6 +74,7 @@ perm_vals_stat = function(listA, listB, stat_func) {
 ```{r}
 set.seed(1234)
 genes = rownames(GM)
+num_reps = 100
 #genes = names(logfcs)[which(abs(logfcs) > 2)]
 fold_changes_df = data.frame(gene=NULL, logFC = NULL, pvalue=NULL)
 counter = 0
@@ -92,9 +94,9 @@ for (gene in genes) {
   
   diff_means = mean_GM - mean_H1
   
-  perms = replicate(n = 1000, expr = perm_vals_stat(GM_vals, H1_vals, mean))
+  perms = replicate(n = num_reps, expr = perm_vals_stat(GM_vals, H1_vals, mean))
   
-  p_val = sum( abs(perms) >= abs(diff_means) ) / 1000
+  p_val = sum( abs(perms) >= abs(diff_means) ) / num_reps
   
   fold_changes_df = rbind(fold_changes_df, c(gene, logFC, p_val))
   
@@ -102,6 +104,15 @@ for (gene in genes) {
 colnames(fold_changes_df) = c('gene', 'logFC', 'p_val')
 write.table(fold_changes_df, file="simple_perm.fold_changes.dat", quote=F, sep='\t')
 ```
+
+
+```{r}
+system("./scripts/assign_prediction_status.pl simple_perm.fold_changes.dat 1 3 > simple_perm.fold_changes.dat.roc")
+
+simple_perm_data = read.table("simple_perm.fold_changes.dat.roc")
+plot(simple_perm_data$FP_rate, simple_perm_data$TP_rate)
+```
+
 
 ## simulation with sampling from normal
 Also, use mean and median as the stats
@@ -111,11 +122,12 @@ Also, use mean and median as the stats
 fold_changes_df_sim = data.frame(gene=NULL, logFC = NULL, 
                                  pvalue_for_mean=NULL, pvalue_for_median=NULL)
 
+set.seed = 1234
 sample_size = 10
 counter = 0
 for (gene in genes) {
   counter = counter + 1
-  if (counter %% 100 == 0) {
+  if (counter %% 1000 == 0) {
     message("at count: ", counter)
   }
   #if (counter > 25) { break}
@@ -123,11 +135,11 @@ for (gene in genes) {
   GM_vals = GM[gene,]
   H1_vals = H1[gene,]
   
-  gene_varGM = var(GM_vals) 
+  gene_varGM = max(var(GM_vals), 1)
   gene_meanGM = mean(GM_vals)
   gene_medianGM = median(GM_vals)
   
-  gene_varH1 = var(H1_vals)
+  gene_varH1 = max(var(H1_vals), 1)
   gene_meanH1 = mean(H1_vals)
   gene_medianH1 = median(H1_vals)
   
@@ -139,13 +151,13 @@ for (gene in genes) {
   rnorm_GM = abs(rnorm(n = sample_size, mean=gene_meanGM, sd=sqrt(gene_varGM)))
   rnorm_H1 = abs(rnorm(n = sample_size, mean=gene_meanH1, sd=sqrt(gene_varH1)))
   
-  perm_vals_mean =  replicate(n = 1000, expr = perm_vals_stat(rnorm_GM, rnorm_H1, mean))
+  perm_vals_mean =  replicate(n = num_reps, expr = perm_vals_stat(rnorm_GM, rnorm_H1, mean))
    
-  perm_vals_median =  replicate(n = 1000, expr = perm_vals_stat(rnorm_GM, rnorm_H1, median))
+  perm_vals_median =  replicate(n = num_reps, expr = perm_vals_stat(rnorm_GM, rnorm_H1, median))
  
-  p_val_for_mean = sum( abs(perm_vals_mean) >= abs(diff_means) ) / 1000
+  p_val_for_mean = sum( abs(perm_vals_mean) >= abs(diff_means) ) / num_reps
   
-  p_val_for_median = sum( abs(perm_vals_median) >= abs(diff_medians)) / 1000
+  p_val_for_median = sum( abs(perm_vals_median) >= abs(diff_medians)) / num_reps
   
   fold_changes_df_sim = rbind(fold_changes_df_sim, c(gene, logFC, p_val_for_mean, p_val_for_median))
   
@@ -155,6 +167,21 @@ for (gene in genes) {
 colnames(fold_changes_df_sim) = c('gene', 'logFC', 'p_val_for_mean', 'p_val_for_median')
 
 write.table(fold_changes_df_sim, file="sim_norm_perm.fold_changes.dat", quote=F, sep='\t')
+```
+
+```{r}
+system("./scripts/assign_prediction_status.pl sim_norm_perm.fold_changes.dat 1 3 > sim_norm_perm.fold_changes.dat.byMean.roc")
+system("./scripts/assign_prediction_status.pl sim_norm_perm.fold_changes.dat 1 4 > sim_norm_perm.fold_changes.dat.byMedian.roc")
+
+sim_data_byMean = read.table("sim_norm_perm.fold_changes.dat.byMean.roc")
+sim_data_byMedian = read.table("sim_norm_perm.fold_changes.dat.byMedian.roc")
+```
+
+
+```{r}
+plot(simple_perm_data$FP_rate, simple_perm_data$TP_rate, t='l')
+points(sim_data_byMean$FP_rate, sim_data_byMean$TP_rate, col='red', t='l')
+points(sim_data_byMedian$FP_rate, sim_data_by_Median$TP_rate, col='orange', t='l')
 ```
 
 
