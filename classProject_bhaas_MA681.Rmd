@@ -12,7 +12,7 @@ options(stringsAsFactors = FALSE)
 ```
 
 ```{r}
-data = read.table("data/CellLines/GM12892_H1hESC.counts.matrix", header=T, row.names=1)
+data = read.table("data/GM12892_H1hESC.counts.matrix", header=T, row.names=1)
 
 # convert to CPMs
 cs = colSums(data)
@@ -71,6 +71,7 @@ perm_vals_stat = function(listA, listB, stat_func) {
 ## Simple permutations to find DE genes:
 
 ```{r}
+set.seed(1234)
 genes = rownames(GM)
 #genes = names(logfcs)[which(abs(logfcs) > 2)]
 fold_changes_df = data.frame(gene=NULL, logFC = NULL, pvalue=NULL)
