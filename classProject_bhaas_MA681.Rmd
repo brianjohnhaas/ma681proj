@@ -1,0 +1,160 @@
+---
+title: "Brian Haas, Class Project MA681 2017"
+author: "Brian Haas"
+date: "12/14/2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+options(stringsAsFactors = FALSE)
+```
+
+```{r}
+data = read.table("data/CellLines/GM12892_H1hESC.counts.matrix", header=T, row.names=1)
+
+# convert to CPMs
+cs = colSums(data)
+data = t(apply(data, 1, function(x) { x / cs * 1e6 }))
+
+GM = data[,grep("^GM", colnames(data))]
+H1 = data[,grep("^H1", colnames(data))]
+
+```
+
+Get variance calculations
+```{r}
+varGM = apply(GM, 1, var)
+meanGM = rowMeans(GM)
+
+varH1 = apply(H1, 1, var)
+meanH1 = rowMeans(H1)
+
+meanVarInfo = data.frame(meanGM=meanGM, varGM=varGM, meanH1=meanH1, varH1=varH1)
+```
+
+Show variance for each, compare to Poisson.
+
+```{r}
+plot(x = meanVarInfo$meanGM, y=meanVarInfo$varGM, log='xy', pch='.')
+points(x=meanVarInfo$meanH1, y=meanVarInfo$varH1, col='blue', pch='.')
+abline(a=0,b=1, col='red')
+```
+
+```{r}
+logfcs = log( (meanGM+1) / (meanH1 + 1) )
+plot(density(logfcs))
+median(logfcs)
+abline(v=0, col='red')
+```
+
+Identify differentially expressed transcripts
+
+```{r}
+
+perm_vals_stat = function(listA, listB, stat_func) {
+ 
+    all_vals = c(listA, listB)
+    perm_all_vals = sample(all_vals)
+    new_listA = perm_all_vals[1:length(listA)]
+    new_listB = perm_all_vals[(length(listA)+1):length(all_vals)]
+    
+    delta = stat_func(new_listA) - stat_func(new_listB)
+    
+    return(delta)
+}
+ 
+```
+
+
+## Simple permutations to find DE genes:
+
+```{r}
+genes = rownames(GM)
+#genes = names(logfcs)[which(abs(logfcs) > 2)]
+fold_changes_df = data.frame(gene=NULL, logFC = NULL, pvalue=NULL)
+counter = 0
+for (gene in genes) {
+  counter = counter + 1
+  if (counter %% 1000 == 0) {
+    message("at count: ", counter)
+  }
+  #if (counter > 1000) { break; }
+  GM_vals = GM[gene,]
+  H1_vals = H1[gene,]
+  
+  mean_GM = mean(GM_vals)
+  mean_H1 = mean(H1_vals)
+  
+  logFC = log( (mean_GM+1) / (mean_H1+1) )
+  
+  diff_means = mean_GM - mean_H1
+  
+  perms = replicate(n = 1000, expr = perm_vals_stat(GM_vals, H1_vals, mean))
+  
+  p_val = sum( abs(perms) >= abs(diff_means) ) / 1000
+  
+  fold_changes_df = rbind(fold_changes_df, c(gene, logFC, p_val))
+  
+}
+colnames(fold_changes_df) = c('gene', 'logFC', 'p_val')
+write.table(fold_changes_df, file="simple_perm.fold_changes.dat", quote=F, sep='\t')
+```
+
+## simulation with sampling from normal
+Also, use mean and median as the stats
+
+```{r}
+
+fold_changes_df_sim = data.frame(gene=NULL, logFC = NULL, 
+                                 pvalue_for_mean=NULL, pvalue_for_median=NULL)
+
+sample_size = 10
+counter = 0
+for (gene in genes) {
+  counter = counter + 1
+  if (counter %% 100 == 0) {
+    message("at count: ", counter)
+  }
+  #if (counter > 25) { break}
+  
+  GM_vals = GM[gene,]
+  H1_vals = H1[gene,]
+  
+  gene_varGM = var(GM_vals) 
+  gene_meanGM = mean(GM_vals)
+  gene_medianGM = median(GM_vals)
+  
+  gene_varH1 = var(H1_vals)
+  gene_meanH1 = mean(H1_vals)
+  gene_medianH1 = median(H1_vals)
+  
+  diff_means = gene_meanH1 - gene_meanGM
+  diff_medians = gene_medianH1 - gene_medianGM
+  
+  logFC = log( (gene_meanGM+1) / (gene_meanH1+1) )
+  
+  rnorm_GM = abs(rnorm(n = sample_size, mean=gene_meanGM, sd=sqrt(gene_varGM)))
+  rnorm_H1 = abs(rnorm(n = sample_size, mean=gene_meanH1, sd=sqrt(gene_varH1)))
+  
+  perm_vals_mean =  replicate(n = 1000, expr = perm_vals_stat(rnorm_GM, rnorm_H1, mean))
+   
+  perm_vals_median =  replicate(n = 1000, expr = perm_vals_stat(rnorm_GM, rnorm_H1, median))
+ 
+  p_val_for_mean = sum( abs(perm_vals_mean) >= abs(diff_means) ) / 1000
+  
+  p_val_for_median = sum( abs(perm_vals_median) >= abs(diff_medians)) / 1000
+  
+  fold_changes_df_sim = rbind(fold_changes_df_sim, c(gene, logFC, p_val_for_mean, p_val_for_median))
+  
+   
+}
+
+colnames(fold_changes_df_sim) = c('gene', 'logFC', 'p_val_for_mean', 'p_val_for_median')
+
+write.table(fold_changes_df_sim, file="sim_norm_perm.fold_changes.dat", quote=F, sep='\t')
+```
+
+
+

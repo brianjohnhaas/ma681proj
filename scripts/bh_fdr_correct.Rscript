@@ -1,0 +1,12 @@
+#!/usr/bin/env Rscript
+
+args<-commandArgs(TRUE)
+
+if (length(args) == 0) {
+    stop("Error, require params: consolidated_dat_filename");
+}
+
+filename = args[1]
+
+
+data = read.table(filename)

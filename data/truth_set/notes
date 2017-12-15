@@ -1,0 +1,15 @@
+cat edgeR_n_DESeq2_combined.joint_info.dat | perl -lane 'if ($F[5] <= 0.05) { print;}' |  print.pl 0 > TP.genes
+
+cat edgeR_n_DESeq2_combined.joint_info.dat | perl -lane 'if ($F[5] > 0.05 && $F[6] <0.2) { print;}' |  print.pl 0 > unsure.genes
+
+Venn.pl all.genes TP.genes unsure.genes  > venn.txt
+
+c venn.txt  | egrep -v TP.gen | grep -v unsure | print.pl 0 > TN.list
+
+c venn.txt |grep TP.gene | print.pl 0 > TP.list
+
+wc -l *list
+
+	9445 TN.list
+	10236 TP.list
+
