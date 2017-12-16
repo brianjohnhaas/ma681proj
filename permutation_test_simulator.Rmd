@@ -1,0 +1,59 @@
+---
+title: "permutation test simulation"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+perm_vals_stat = function(listA, listB, stat_func) {
+ 
+    all_vals = c(listA, listB)
+    perm_all_vals = sample(all_vals)
+    new_listA = perm_all_vals[1:length(listA)]
+    new_listB = perm_all_vals[(length(listA)+1):length(all_vals)]
+    
+    delta = stat_func(new_listA) - stat_func(new_listB)
+    
+    return(delta)
+}
+
+
+
+
+num_trials = 1000
+
+permutation_test_simulator = function(meanA, varA, numA,
+                                      meanB, varB, numB) {
+  
+  sampleA = rnorm(n = numA, mean = meanA, sd = sqrt(varA))
+  
+  sampleB = rnorm(n = numB, mean = meanB, sd = sqrt(varB))
+  
+  
+  perms = replicate(n = num_trials, expr = perm_vals_stat(sampleA, sampleB, mean))
+  perms = abs(perms)
+  
+  mean_delta = abs(meanB-meanA)
+  plot(density(perms),xlim=range(c(perms, mean_delta)))
+  abline(v=(meanB-meanA), col='red')
+  
+}
+
+
+```
+
+
+```{r}
+permutation_test_simulator(5,5,5, 10,20,5)
+```
+
+```{r}
+permutation_test_simulator(50,5,30, 100,20,30)
+```
+
+
+
