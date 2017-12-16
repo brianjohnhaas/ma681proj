@@ -127,7 +127,7 @@ plot(simple_perm_data$FP_rate, simple_perm_data$TP_rate)
 
 ```{r}
 
-plot(fold_changes_df$logFC, -1*log(as.numeric(fold_changes_df$p_val)), pch='.')
+smoothScatter(fold_changes_df$logFC, -1*log(as.numeric(fold_changes_df$p_val)), pch='.')
 
 ```
 
@@ -455,11 +455,11 @@ sim_data_byMedian_varconf = read.table("sim_norm_perm.fold_changes.var_conf.dat.
 
 ```{r}
 plot(simple_perm_data$FP_rate, simple_perm_data$TP_rate, t='l')
-points(sim_data_byMean$FP_rate, sim_data_byMean$TP_rate, col='red', t='l')
-points(sim_data_byMedian$FP_rate, sim_data_byMedian$TP_rate, col='orange', t='l')
+#points(sim_data_byMean$FP_rate, sim_data_byMean$TP_rate, col='red', t='l')
+#points(sim_data_byMedian$FP_rate, sim_data_byMedian$TP_rate, col='orange', t='l')
 
 points(sim_data_byMean_varconf$FP_rate, sim_data_byMean_varconf$TP_rate, col='blue', t='l')
-points(sim_data_byMedian_varconf$FP_rate, sim_data_byMedian_varconf$TP_rate, col='green', t='l')
+#points(sim_data_byMedian_varconf$FP_rate, sim_data_byMedian_varconf$TP_rate, col='green', t='l')
 
 
 ```
@@ -618,7 +618,8 @@ points(sim_data_byMedian_varconf_lm$FP_rate, sim_data_byMedian_varconf_lm$TP_rat
 
 
 ```{r}
-plot(fold_changes_df_sim_varconf_lm$logFC, -1*log(as.numeric(fold_changes_df_sim_varconf_lm$p_val_for_mean)), pch='.')
+smoothScatter(fold_changes_df_sim_varconf_lm$logFC, -1*log(as.numeric(fold_changes_df_sim_varconf_lm$p_val_for_mean)), pch='.')
+
 
 ```
 
