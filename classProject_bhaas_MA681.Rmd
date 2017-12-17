@@ -40,9 +40,10 @@ meanVarInfo = data.frame(meanGM=meanGM, varGM=varGM, meanH1=meanH1, varH1=varH1)
 Show variance for each, compare to Poisson.
 
 ```{r}
-plot(x = meanVarInfo$meanGM, y=meanVarInfo$varGM, log='xy', pch='.')
+plot(x = meanVarInfo$meanGM, y=meanVarInfo$varGM, log='xy', pch='.', xlab='mean(expression)', ylab='variance')
 points(x=meanVarInfo$meanH1, y=meanVarInfo$varH1, col='blue', pch='.')
 abline(a=0,b=1, col='red')
+legend('topleft', legend=c('GM', 'H1'), fill=c('black', 'blue'))
 ```
 
 ```{r}
@@ -133,7 +134,7 @@ points(simple_perm_data_byMedian$FP_rate, simple_perm_data_byMedian$TP_rate, col
 
 ```{r}
 
-smoothScatter(fold_changes_df$logFC, -1*log(as.numeric(fold_changes_df$p_val)), pch='.')
+smoothScatter(fold_changes_df$logFC, -1*log(as.numeric(fold_changes_df$p_val_for_mean)), pch='.')
 
 ```
 
@@ -204,7 +205,7 @@ plot_dist_of_stat_differences = function(gene) {
 
 
 ```{r}
-plot_dist_of_stat_differences('A1BG')
+#plot_dist_of_stat_differences('A1BG')
 ```
 
 

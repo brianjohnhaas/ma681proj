@@ -1,0 +1,159 @@
+---
+title: "rnaseq_exploration"
+author: "Brian Haas"
+date: "11/6/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(MASS)
+library(tidyverse)
+library(knitr)
+```
+
+#  Compare 'Integer' Gaussian to Poisson.
+
+```{r}
+
+x=1;n=10000; plot(density(rnorm(n=n, mean=x, sd=sqrt(x))), ylim=c(0,1.4)); lines(density(rpois(n = n, lambda = x)), col='red')
+
+```
+
+
+```{r}
+
+x=1;n=10000; plot(density(sapply(rnorm(n=n, mean=x, sd=sqrt(x)), FUN=function(x) { max(x,0) })), ylim=c(0,1.4)); lines(density(rpois(n = n, lambda = x)), col='red')
+
+```
+
+
+
+```{r}
+
+x=1;n=10000; plot(density(sapply(round(rnorm(n=n, mean=x, sd=sqrt(x))), FUN=function(x) max(x,0))), ylim=c(0,1.4)); lines(density(rpois(n = n, lambda = x)), col='red')
+
+```
+
+
+
+
+
+```{r}
+ x=1;n=10000; plot(density(sapply(round(rnorm(n=n, mean=x, sd=sqrt(x))), FUN=function(x) max(x,0))), ylim=c(0,1.4)); lines(density(rpois(n = n, lambda = x)), col='red')
+
+x=2;n=10000; plot(density(sapply(round(rnorm(n=n, mean=x, sd=sqrt(x))), FUN=function(x) max(x,0))), ylim=c(0,1.4)); lines(density(rpois(n = n, lambda = x)), col='red')
+
+x=3;n=10000; plot(density(sapply(round(rnorm(n=n, mean=x, sd=sqrt(x))), FUN=function(x) max(x,0))), ylim=c(0,1.4)); lines(density(rpois(n = n, lambda = x)), col='red')
+```
+
+same thing as above, but using ggplot2
+
+```{r}
+x=2;
+num_trials=1000;
+
+poisson_vals = data.frame(vals=rpois(n = num_trials, lambda = x))
+poisson_vals_p = poisson_vals %>% group_by(vals) %>% tally() %>% mutate(p=n/num_trials)
+
+
+gaussian_vals = data.frame(x=rnorm(n=num_trials, mean=x, sd=sqrt(x)))
+
+gaussian_vals %>% ggplot(aes(x)) + geom_density(aes(color='normal')) + geom_linerange(data=poisson_vals_p, aes(x=vals, ymax=p, ymin=0, color='poisson')) + 
+  geom_point(data=poisson_vals_p, aes(x=vals, y=p, color='poisson'))
+
+
+
+```
+
+```{r}
+gaussian_vals_abs = gaussian_vals
+gaussian_vals_abs$x = abs(gaussian_vals_abs$x)
+
+gaussian_vals_abs %>% ggplot(aes(x)) + geom_density(aes(color='normal')) + geom_linerange(data=poisson_vals_p, aes(x=vals, ymax=p, ymin=0, color='poisson')) + 
+  geom_point(data=poisson_vals_p, aes(x=vals, y=p, color='poisson'))
+
+```
+
+
+
+
+```{r}
+
+
+integer_gaussian_vals = sapply(round(abs(gaussian_vals$x)), FUN=function(x) max(x,0))
+
+
+data = data.frame(type=c(rep('IntegerGaussian', num_trials), rep('Poisson',num_trials)),
+                  vals = c(integer_gaussian_vals, poisson_vals$vals))
+
+
+data %>% group_by(type, vals) %>% tally() %>% mutate(p=n/num_trials) %>% ggplot(aes(x=vals, y=p, color=type)) + geom_linerange(aes(ymin=0, ymax=p), position=position_dodge(width = .3)) + geom_point(position=position_dodge(width = .3))
+
+
+```
+
+```{r}
+qqplot(integer_gaussian_vals, poisson_vals$vals, xlab='int_gaus', ylab='poisson')
+abline(a=0,b=1, col='red')
+ks.test(integer_gaussian_vals, poisson_vals$vals)
+```
+
+
+
+
+
+```{r}
+
+x=20;n=10000; plot(density(sapply(round(rnorm(n=n, mean=x, sd=sqrt(x))), FUN=function(x) max(x,0))), ylim=c(0,0.1)); lines(density(rpois(n = n, lambda = x)), col='red')
+
+```
+
+Note, using n=10, ks.test and t.test don't show significant difference between the distributions.
+
+
+## Negative binomial
+```{r}
+num_trials = 10
+mu=3
+theta = 1
+
+rnegbinsample = rnbinom(n=num_trials, mu=mu, size=theta)
+
+rnormsample = rnorm(num_trials, mean=mu, sd=sd(rnegbinsample))
+message("var(rnormsample): ", var(rnormsample))
+
+ks.test(integer_gaussian_vals,rnegbinsample )
+
+integer_gaussian_vals = sapply(round(abs(rnormsample)), FUN=function(x) max(x,0))
+data = data.frame(type=c(rep('IntegerGaussian', num_trials), rep('NegBin',num_trials)),
+                  vals = c(integer_gaussian_vals, rnegbinsample))
+
+df = data.frame(rnegbin=rnegbinsample, guassian=rnormsample)
+
+rnegbin_counts = table(rnegbinsample)
+rnegbin_counts_df = data.frame(rnegbin_counts)
+rnegbin_counts_df[['rnegbinsample']] = as.character(rnegbin_counts_df[['rnegbinsample']])
+rnegbin_counts_df[['rnegbinsample']] = as.numeric(rnegbin_counts_df[['rnegbinsample']])
+rnegbin_counts_df[['p']] = rnegbin_counts_df$Freq/sum(rnegbin_counts_df$Freq)
+
+rnormsample = data.frame(x=abs(rnormsample))
+
+#rnormsample = data.frame(x=rnormsample)
+
+#rnormsample %>% ggplot(aes(x)) + geom_density(aes(color='normal')) 
+
+rnormsample %>% ggplot(aes(x)) + geom_density(aes(color='normal')) +
+  geom_linerange(data=rnegbin_counts_df, aes(x=rnegbinsample/1.0, ymax=p, ymin=0, color='negbin')) +
+  geom_point(data=rnegbin_counts_df, aes(x=rnegbinsample, y=p, color='negbin'))
+
+
+data %>% group_by(type, vals) %>% tally() %>% mutate(p=n/num_trials) %>% ggplot(aes(x=vals, y=p, color=type)) + geom_linerange(aes(ymin=0, ymax=p), position=position_dodge(width = .3)) + geom_point(position=position_dodge(width = .3))
+
+
+
+
+```
+
+
+
